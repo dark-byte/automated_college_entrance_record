@@ -1,0 +1,4 @@
+/server/node_modules
+/server/testing/
+/OCR_Model
+/server/text_extraction_module.py
