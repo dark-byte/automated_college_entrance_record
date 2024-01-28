@@ -1,43 +1,33 @@
 const express = require('express');
-const { spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
+const multer = require('multer');
+const { PythonShell } = require('python-shell');
 
 const app = express();
 const port = 3000;
 
-app.use(express.json({ limit: '10mb' })); // Increase the payload size limit if needed
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
-app.post('/extractText', (req, res) => {
-  // Assuming the image is sent in the request body as { image: 'base64encodeddata' }
-  const imageData = req.body.image;
+app.post('/predict_license_plate', upload.single('image'), (req, res) => {
+  const scriptPath = '/Users/adrish_mitra/Documents/CODE/automated_college_entrance_record/server/predictWithOCR.py'; // Adjust the path
+  const imageBuffer = req.file.buffer;
 
-  // Save the image data to a temporary file
-  const tempImagePath = path.join(__dirname, 'temp_image.jpg');
-  fs.writeFileSync(tempImagePath, imageData, 'base64');
+  const options = {
+    args: ['--img', 'input_image.jpg'], // Adjust arguments as needed
+    scriptPath: scriptPath,
+  };
 
-  const pythonScript = path.join(__dirname, 'text_extraction_module.py');
-  const pythonProcess = spawn('python', [pythonScript, tempImagePath]);
-
-  pythonProcess.stdout.on('data', (data) => {
-    const result = JSON.parse(data.toString());
-    
-    // Remove the temporary image file
-    fs.unlinkSync(tempImagePath);
-
-    res.json(result);
-  });
-
-  pythonProcess.stderr.on('data', (data) => {
-    console.error(`Error: ${data}`);
-    
-    // Remove the temporary image file
-    fs.unlinkSync(tempImagePath);
-
-    res.status(500).send('Internal Server Error');
+  PythonShell.run(scriptPath, options, (err, results) => {
+    if (err) {
+      console.error('Error:', err);
+      res.status(500).json({ error: 'Internal Server Error' });
+    } else {
+      const licensePlate = results[0].trim(); // Adjust result processing
+      res.json({ license_plate: licensePlate });
+    }
   });
 });
 
 app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+  console.log(`Server is running on http://localhost:${port}`);
 });
